@@ -1,0 +1,937 @@
+//imports//
+
+import flash.utils.Timer;
+import flash.events.TimerEvent;
+import flash.events.MouseEvent;
+import flash.net.SharedObject;
+import flash.events.KeyboardEvent;
+import flash.media.Sound;
+import flash.media.SoundChannel;
+
+//timer//
+var beginTime:uint;
+var timer:Timer = new Timer(2500);
+timer.addEventListener(TimerEvent.TIMER, enemyfireBullet);
+soundoff_btn.addEventListener(MouseEvent.CLICK, SoundOff);
+ 
+ //hp//
+var maxHP:int = 100;
+var currentHP:int = maxHP;
+var percentHP:Number = currentHP / maxHP;
+ 
+var healed:Boolean=false;
+var checkpoint:Boolean=false;
+
+var hitcount:int;
+
+//controlls&physics//
+var leftPressed:Boolean = false;
+var rightPressed:Boolean = false;
+var upPressed:Boolean = false;
+var downPressed:Boolean = false;
+
+var scrollX:Number = 0;
+var scrollY:Number = 500;
+
+var xSpeed:Number = 0;
+var ySpeed:Number = 0;
+
+var gravityConstant:Number = 1.5;
+var speedConstant:int = 2;
+var friction:Number = 0.85; 
+
+ var leftBumping:Boolean = false;
+var rightBumping:Boolean = false;
+var upBumping:Boolean = false;
+var downBumping:Boolean = false;
+
+
+var leftBumpPoint:Point = new Point(-42, -42);
+var rightBumpPoint:Point = new Point(42, -42);
+var upBumpPoint:Point = new Point(0, -82);
+var downBumpPoint:Point = new Point(0, 0);
+//jump//
+var jumpConstant:Number = -25;
+var maxSpeedConstant:Number = 15;
+var doubleJumpReady:Boolean = false;
+var upReleasedInAir:Boolean = false;
+
+//keys&doors//
+var keyCollected:Boolean = false;
+var doorOpen:Boolean = false;
+var key2Collected:Boolean = false;
+var door2Open:Boolean = false;
+//enemies &bullets//
+var bulletList:Array = new Array();
+var enemyList:Array = new Array();
+
+var grantEnemyList:Array = new Array();
+var enemybulletList:Array = new Array();
+//moving platforms//
+var platformList:Array = new Array();
+var HplatformList:Array = new Array();
+var bumperList:Array = new Array();
+//scores//
+var scores:Array = new Array();
+var topscores:Array= new Array(10);
+var score:int;
+var so:SharedObject = SharedObject.getLocal("storing");
+var scorename:String;
+var currentScore:int = 0;
+
+var currentLevel:int = 1;
+player.pl.eye.stop();
+player.pl.legs.stop();
+var animationState:String = "idle";
+var k = 1; 
+
+var gamecondition:String;
+
+
+// sound definitions//
+var gameoverS:Sound = new gameover();
+var BGSound:Sound = new bgmusic();
+var chanel:SoundChannel;
+var menuchanel:SoundChannel;
+var sndTransform:SoundTransform;
+sndTransform = new SoundTransform(0.2);
+var jumpSound:Sound = new jump_01();
+var fire:Sound =  new fireball();
+var menu:Sound = new Coffeeshop();
+var shootS:Sound = new shoots();
+var hurtS:Sound = new hurt();
+var hitS:Sound = new hithurt();
+var keypickS:Sound = new keypick();
+var healedS:Sound = new healthkitS();
+var btnclickcount:int;
+//loading previous high score//
+if (so.data.scorear != null) //This check if the user has already played the game and has a high score saved on his/her computer. 
+{ 
+        scores = so.data.scorear;
+		trace ("ok");
+		
+}
+
+
+function newGame(e:MouseEvent):void
+{   //menuchanel.stop();
+	gotoAndPlay(1);
+	
+	hitcount=0;
+	score=0;
+	gamecondition="play";
+	
+}
+function SoundOff (e:MouseEvent):void {
+	btnclickcount++;
+	if (btnclickcount %2 == 1) {
+		chanel.stop();
+	}
+	if (btnclickcount%2 == 0) {
+	chanel = BGSound.play(0, 1000, sndTransform);
+	}
+}
+function nextLevel():void{
+	for (var i:int = 0; i < enemyList.length; i++) { // for each enemy
+enemyList[i].removeSelf(); // remove from current level
+	}
+     currentLevel++;
+     trace("Next Level: " + currentLevel);
+     if(currentLevel == 2){
+          gotoLevel2();
+     }
+}
+function CleanLvl():void {
+	timer.removeEventListener(TimerEvent.TIMER, enemyfireBullet);
+		 for (var i:int = 0; i < enemyList.length; i++) { // for each enemy
+enemyList[i].removeSelf(); // remove from current level
+	}
+	 for (var j:int = 0; j < grantEnemyList.length; j++) { // for each enemy
+grantEnemyList[j].removeSelf(); // remove from current level
+	}
+	for (var k:int = 0; k < platformList.length; k++) { // for each enemy
+platformList[k].removeSelf(); // remove from current level
+	}
+	for (var l:int = 0; l < HplatformList.length; l++) { // for each enemy
+HplatformList[l].removeSelf(); // remove from current level
+	}
+	
+}
+
+function gameOver():void
+{     
+      chanel.stop();
+     gameoverS.play();
+	 btnclickcount=0;
+	CleanLvl();
+	SaveScores();
+
+	gotoAndStop("gameover");
+	
+	
+}
+function back(e:MouseEvent):void 
+{
+	gotoAndStop("newgame");
+}
+function howtoplay(e:MouseEvent):void {
+	gotoAndStop("howtoplay");
+}
+function SaveScores():void{
+	scores.push(score);
+	so.data.scorear = scores;
+
+}
+function Scores(e:MouseEvent):void {
+	gotoAndStop("scores");
+	gamecondition="no"; 
+	scores.sort(Array.NUMERIC);
+	scores.reverse();
+	trace("sorted",scores);
+	for (var i:int = 0; i < 11; i++){
+        if (scores[i]!=null) 
+		{  topscores[i]=scores[i];
+	    }
+		else { 
+		topscores[i]=("not scored yet!");
+			}
+	}
+	for (var j:int =0; j< topscores.length; j ++){
+	score_result_txt.appendText(topscores[j] + "\n");
+	}
+}
+
+function health(hpcount:int):void
+{    
+  
+      if (hpcount > 0) {
+		  hurtS.play();
+	  }
+	  else {
+		  healedS.play();
+	  }
+     currentHP -= hpcount;
+	  if (currentHP >100)
+	 {currentHP=100;
+	 }
+     if(currentHP <= 0) //if the player died
+     {
+          currentHP = 0; //set his HP to zero, (just in case)
+          trace("You died! :P");
+		 gameOver();//add any extra death-code here
+     }
+     updateHealthBar(); //update the healthBar
+}
+
+function updateHealthBar():void
+{
+     percentHP = currentHP / maxHP;
+     healthBar.barColor.scaleX = percentHP;
+}
+ function addPlatformsToLevel1():void {
+	 addHorizont(479,-504);
+	 addHorizont(2062,-890);
+	 
+	 addVertical(2681,33);
+	 addVertical(2875,-486);
+	 addVertical(3123,33);
+	 
+	 //lowerground
+	 
+	 addHorizont(1283, 708);
+	 addHorizont(2547, 591);
+	 
+	 addVertical(1970,988);
+	 addVertical(2843, 1091);
+	 
+ }
+function addEnemiesToLevel1():void
+{
+    addEnemy(198, -498);
+   addEnemy(550, -767);
+	addEnemy(1324, -767);
+	addEnemy(866, -243);
+	
+	addgrantEnemy(898, -1172);
+	addgrantEnemy(3469, -366);
+	
+	//lowerground
+	addEnemy(244, 1012);
+   addEnemy(344, 336);
+	addEnemy(1160, 340);
+	addEnemy(1985, 340);
+	
+	addgrantEnemy(3185, 896);
+}
+
+function addEnemiesToLevel2():void {
+	addEnemy (300,150);
+	addgrantEnemy(400,200);
+}
+function addBumpersToLevel1():void
+{
+    // 1 emeny
+	addBumper(-8, -453);
+	
+	// 2 enemy
+	addBumper(369, -699);
+	addBumper(953, -699);
+	// 3 enemy
+	addBumper(1446, -699);
+	
+	// 4 enemy
+	addBumper(643, -197);
+	addBumper(1031, -197);
+	// 5 enemy
+	addBumper(-4, 1072);
+	addBumper(427, 1072);
+	// 6 enemy
+	addBumper(203, 396);
+	addBumper(795, 396);
+	// 7 enemy
+	addBumper(1591, 396);
+	// 8 enemy
+	addBumper(2439, 396);
+	
+	// grant enemy 1
+	addBumper(705,-1097);
+	addBumper(1098,-1097);
+	// grant enemy 2
+	addBumper(3228, -297);
+	addBumper(3750, -297);
+	
+	//grantenemy 3 
+	addBumper(3360,968);
+	addBumper(2988,968);
+	
+	// vertical 1
+	addBumper(2672,-557);
+	addBumper(2672,130);
+	// vertical 2
+	addBumper(2880,-549);
+	addBumper(2880,138);
+	// vertical 3
+	addBumper(3134,-549);
+	addBumper(3134,150);
+		// horizontal 1
+		addBumper(377,-473);
+		addBumper(1768,-473);
+		//horizontal 2
+		addBumper(1916,-873);
+	    addBumper(3218,-873);
+		
+		// horizontal 3
+		addBumper(1147,720);
+	    addBumper(2387,720);
+		
+		// horizontal 4
+		addBumper(2664,600);
+	    addBumper(1351,600);
+		
+		// vertocal 4
+		addBumper(1971,1088);
+	    addBumper(1971,468);
+		// vertical 5
+		addBumper(2832,1220);
+	    addBumper(2844,252);
+		
+   
+}
+function addVertical(xLocation:int, yLocation:int):void
+{
+var VertPlatform:movingpl = new movingpl(xLocation, yLocation);
+bg.collisions.addChild(VertPlatform);
+trace ("done");
+platformList.push(VertPlatform);
+}
+
+function addHorizont(xLocation:int, yLocation:int):void
+{
+var HPlatform:horizont = new horizont(xLocation, yLocation);
+bg.collisions.addChild(HPlatform);
+HplatformList.push(HPlatform);
+}
+
+function addBumper(xLocation:int, yLocation:int):void
+{
+var Bumper:bumper = new bumper(xLocation, yLocation);
+bg.addChild(Bumper);
+Bumper.visible = false;
+bumperList.push(Bumper);
+}
+
+//regular enemy//
+function addEnemy(xLocation:int, yLocation:int):void
+{
+    var enemy:Enemy = new Enemy(xLocation, yLocation);
+    bg.addChild(enemy);
+ 
+    enemy.addEventListener(Event.REMOVED, enemyRemoved);
+    enemyList.push(enemy);
+}
+
+// big angry Grand Enemy//
+function addgrantEnemy(xLocation:int, yLocation:int):void
+{
+    var grantenemy:grantEnemy = new grantEnemy(xLocation, yLocation);
+	
+    bg.addChild(grantenemy);
+    grantenemy.addEventListener(Event.REMOVED, grantenemyRemoved);
+    grantEnemyList.push(grantenemy);
+	//trace("grant:", grantEnemyList);
+}
+function enemyRemoved(e:Event):void
+{
+    e.currentTarget.removeEventListener(Event.REMOVED, enemyRemoved); //this just removes the eventListener so we don't get an error
+    enemyList.splice(enemyList.indexOf(e.currentTarget), 1); //this removes 1 object from the enemyList, at the index of whatever object caused this function to activate
+}
+function grantenemyRemoved(e:Event):void
+{
+    e.currentTarget.removeEventListener(Event.REMOVED, grantenemyRemoved); //this just removes the eventListener so we don't get an error
+    grantEnemyList.splice(grantEnemyList.indexOf(e.currentTarget), 1); //this removes 1 object from the enemyList, at the index of whatever object caused this function to activate
+}
+
+
+
+function fireBullet():void {
+	shootS.play();
+    var playerDirection:String;
+    if(player.scaleX < 0){
+        playerDirection = "left";
+    } 
+	else if(player.scaleX > 0){
+        playerDirection = "right";
+    }
+    var Bullet:bullet = new bullet(player.x - scrollX, player.y - scrollY, playerDirection, xSpeed);
+bg.addChild(Bullet);
+bulletList.push(Bullet);
+Bullet.addEventListener(Event.REMOVED, bulletRemoved);
+}
+
+
+// enemy bullets
+function enemyfireBullet(e:TimerEvent):void {
+    var playerDirection:String;
+	for (var u:int = 0; u < grantEnemyList.length; u++){
+    	if(grantEnemyList[u].scaleX < 0){
+        playerDirection = "left";
+   		 }
+		else if(grantEnemyList[u].scaleX > 0){
+        playerDirection = "right";
+    	}
+   
+         var enemyBullet:enemybullet = new enemybullet(grantEnemyList[u].x, grantEnemyList[u].y, playerDirection, grantEnemyList[u].xSpeedConst);
+         bg.addChild(enemyBullet);
+		 
+  		if (!(((Math.abs(bg.y-grantEnemyList[u].y)<=1200)) || (Math.abs(bg.x-grantEnemyList[u].x)<1200))){
+			fire.play();
+		}
+    enemybulletList.push(enemyBullet);
+	}
+enemyBullet.addEventListener(Event.REMOVED, enemybulletRemoved);
+}
+
+function bulletRemoved(e:Event):void {
+    e.currentTarget.removeEventListener(Event.REMOVED, bulletRemoved); 
+    bulletList.splice(bulletList.indexOf(e.currentTarget), 1); //this removes 1 object from the bulletList, at the index of whatever object caused this function to activate
+}
+
+function enemybulletRemoved(e:Event):void {
+    e.currentTarget.removeEventListener(Event.REMOVED, enemybulletRemoved); //this just removes the eventListener so we don't get an error
+    enemybulletList.splice(enemybulletList.indexOf(e.currentTarget), 1); //this removes 1 object from the bulletList, at the index of whatever object caused this function to activate
+}
+//going lvl 2//
+function gotoLevel2():void{
+CleanLvl();
+     bg.others.gotoAndStop(2); //updates door and key
+     bg.visuals.gotoAndStop(2); //updates the visuals
+     bg.collisions.gotoAndStop(2); 
+	 sky.gotoAndStop(2);//updates the collisions
+     scrollX = 0; //resets the player's x position in the new level
+     scrollY = 500; //resets the player's y position in the new level
+     keyCollected = false; //resets the keyCollected variable
+     bg.others.key.visible = true; //makes the key visible again
+     doorOpen = false; //resets the doorOpen variable
+     bg.others.door.gotoAndStop(1); //makes the door return to its locked image
+}
+//just function for blinking kitty's eyes//
+ function Update(e:Event):void {
+
+      if (--k<=0) { 
+
+            player.pl.eye.gotoAndPlay(1); 
+           
+            k = Math.floor(Math.random()*100+30); 
+
+      }
+
+      if(player.pl.eye.currentFrame == player.pl.eye.totalFrames) 
+
+
+           player.pl.eye.gotoAndStop(1); 
+
+}
+
+//main game starts here//
+
+//**********************************************************************************//
+gotoAndStop(3); // going to main menu frame//
+if (gamecondition=="play")
+{  
+addEnemiesToLevel1();
+addBumpersToLevel1();
+addPlatformsToLevel1();
+
+chanel = BGSound.play(0, 1000, sndTransform);
+addEventListener(Event.ENTER_FRAME, Update); 
+gotoAndStop(1);
+// keyboard handlers//
+
+stage.addEventListener(KeyboardEvent.KEY_DOWN, keyDownHandler);
+function keyDownHandler(e:KeyboardEvent):void{
+	if(e.keyCode == Keyboard.LEFT){
+leftPressed = true;
+player.pl.legs.play();
+player.scaleX = -1;
+ 
+} else if(e.keyCode == Keyboard.RIGHT){
+rightPressed = true;
+player.pl.legs.play(); 
+player.scaleX = 1;
+
+} else if(e.keyCode == Keyboard.UP){
+upPressed = true;
+jumpSound.play();
+ 
+} else if(e.keyCode == Keyboard.DOWN){
+downPressed = true;
+if(doorOpen && player.hitTestObject(bg.others.door)){
+          //proceed to somewhere if the player is touching an open door
+          //nextLevel();
+		   scrollX=0;
+		  scrollY=-300;
+		  checkpoint=true;
+     }
+	 
+ if(door2Open && player.hitTestObject(bg.others.door2)){
+          //proceed to somewhere if the player is touching an open door
+          nextLevel();
+
+     }
+}
+
+ 
+}
+ // for key ups//
+stage.addEventListener(KeyboardEvent.KEY_UP, keyUpHandler);
+function keyUpHandler(e:KeyboardEvent):void{
+if(e.keyCode == Keyboard.LEFT){
+leftPressed = false;
+player.pl.legs.stop();
+} else if(e.keyCode == Keyboard.RIGHT){
+rightPressed = false;
+ player.pl.legs.stop();
+} else if(e.keyCode == Keyboard.UP){
+upPressed = false;
+ 
+} else if(e.keyCode == Keyboard.DOWN){
+downPressed = false;
+}
+if(e.keyCode == Keyboard.SPACE){
+    fireBullet();
+}
+if (e.keyCode == Keyboard.ENTER){
+}
+}
+
+//main loop starts here//
+
+stage.addEventListener(Event.ENTER_FRAME, loop);
+ 
+function loop(e:Event):void{
+	
+	if(bg.collisions.hitTestPoint(player.x + leftBumpPoint.x, player.y + leftBumpPoint.y, true)){
+    //trace("leftBumping");
+    leftBumping = true;
+	} 
+	else {
+    leftBumping = false;
+	}
+ 
+	if(bg.collisions.hitTestPoint(player.x + rightBumpPoint.x, player.y + rightBumpPoint.y, true)){
+   // trace("rightBumping");
+    rightBumping = true;
+	} 
+	else {
+    rightBumping = false;
+	}
+ 
+	if(bg.collisions.hitTestPoint(player.x + upBumpPoint.x, player.y + upBumpPoint.y, true)){
+   // trace("upBumping");
+    upBumping = true;
+	}
+	else {
+    upBumping = false;
+	}
+ 
+	if(bg.collisions.hitTestPoint(player.x + downBumpPoint.x, player.y + downBumpPoint.y, true)){
+    //trace("downBumping");
+    downBumping = true;
+	} 
+	else {
+    downBumping = false;
+	}
+
+
+ 	if(leftPressed){
+        xSpeed -= speedConstant;
+		//player.scaleX = -1;
+		 
+	 
+ 
+    } else if(rightPressed){
+        xSpeed += speedConstant;
+		//player.scaleX = 1;
+		
+	 }
+        
+    
+ 
+	 if(leftBumping){
+    	if(xSpeed < 0){
+        xSpeed *= -0.5;
+   	 	}
+	}
+ 
+	if(rightBumping){
+    	if(xSpeed > 0){
+        xSpeed *= -0.5;
+    	}
+	}
+ 
+	if(upBumping){
+   		 if(ySpeed < 0){
+         ySpeed *= -0.5;
+   		 }
+	}
+
+	if(downBumping){
+	
+	upReleasedInAir = false; //upon landing, reset to false
+    doubleJumpReady = true;
+	for (var bz:int = 0; bz < platformList.length; bz++)
+	{
+			if (player.hitTestObject(platformList[bz]))
+				{   
+					if(platformList[bz].flip%2==1)
+						{  
+							ySpeed =platformList[bz].xSpeedConst;
+							scrollY -= ySpeed;
+							bg.y =   scrollY;
+ 						}
+					if(platformList[bz].flip%2==0) 
+						{
+						
+						ySpeed =(-platformList[bz].xSpeedConst)+0.92*gravityConstant;
+
+						
+						scrollY -= ySpeed;
+			
+						bg.y =   scrollY;
+						
+				
+						}
+						
+				}
+			
+				
+	}	//upon landing, reset to true
+
+    for (var by:int = 0; by < HplatformList.length; by++)
+	{
+				if (HplatformList[by].hitTestObject(player))
+					{   
+						if(HplatformList[by].flip%2==1)
+							{ 
+								xSpeed=HplatformList[by].xSpeedConst-0.45*HplatformList[by].xSpeedConst;
+								
+								if (rightPressed) {
+									xSpeed=0;
+									xSpeed+=speedConstant*1.1;
+									scrollX -= xSpeed;
+								     bg.x =   scrollX;
+								}
+								if (leftPressed) {
+									xSpeed=0;
+									xSpeed-=speedConstant;
+									scrollX -= xSpeed;
+								    bg.x =   scrollX;
+								}
+								//friction=0;
+								scrollX -= xSpeed;
+								bg.x =   scrollX;
+								
+ 							}
+				if(HplatformList[by].flip%2==0) 
+					{
+					xSpeed=(-HplatformList[by].xSpeedConst)+0.45*HplatformList[by].xSpeedConst;
+					if (rightPressed) {
+									xSpeed=0;
+									xSpeed+=speedConstant;
+									scrollX -= xSpeed;
+								bg.x =   scrollX;
+								}
+								if (leftPressed) {
+									xSpeed=0;
+									xSpeed-=speedConstant*1.1;
+									scrollX -= xSpeed;
+								    bg.x =   scrollX;
+								}
+					scrollX -= xSpeed;
+					bg.x =   scrollX;
+					
+			
+					}
+					
+		 		}
+	 }
+	if(ySpeed > 0){
+          ySpeed = 0;
+     		}
+	 
+	if(upPressed){ //and if the up arrow is pressed
+          ySpeed = jumpConstant; //set the y speed to the jump constant
+     	}
+ 
+	}		
+			else { 
+     				if(upPressed == false){ // if the player releases the up arrow key
+     				upReleasedInAir = true; // set the variable to true
+					} 	
+					if(doubleJumpReady && upReleasedInAir){ // if both variables are true
+     					if(upPressed){ //and if the up arrow is pressed
+         				 ySpeed = jumpConstant; //set the y speed to the jump constant
+          				doubleJumpReady = false; //then, prevent additional double jumps
+    								 }
+					}//if we are not touching the floor
+ 
+		
+			//trace("flying");
+		ySpeed += gravityConstant;
+		
+		
+		//accelerate downwards
+}
+
+	if(xSpeed > maxSpeedConstant)
+		{ //moving right
+   		  xSpeed = maxSpeedConstant;
+		} 
+	else if(xSpeed < (maxSpeedConstant * -1))
+		{ //moving left
+     	xSpeed = (maxSpeedConstant * -1);
+		}
+		   
+    xSpeed *= friction;
+    ySpeed *= friction;
+					
+	if(Math.abs(xSpeed) < 0.5){
+     xSpeed = 0;
+	
+	} 
+
+    scrollX -= xSpeed;
+    scrollY -= ySpeed;
+ 
+    bg.x =   scrollX;
+    bg.y =  scrollY;
+
+	sky.x = scrollX * 0.2;
+    sky.y = scrollY * 0.2;
+	
+if(keyCollected == false){ // if we still haven't collected the key
+		if(player.hitTestObject(bg.others.key)){
+			keypickS.play(); // and if the player collides with the key
+			bg.others.key.visible = false; // hide the key from view
+			keyCollected = true; // set our Boolean to true
+		}
+	}
+	if(doorOpen == false){ // if the door hasn't been opened yet
+    	 if(keyCollected == true){ // and if the player has already collected the key
+          	if(player.hitTestObject(bg.others.door)){ // check if the door and the player are touching
+               // if all of these conditions are met...
+               bg.others.door.gotoAndStop(2); // ...switch the door's image to its 2nd frame
+               doorOpen = true; // ...set the variable to true
+             }
+         }
+	}
+	if(key2Collected == false){ // if we still haven't collected the key
+		if(player.hitTestObject(bg.others.key2)){
+			// and if the player collides with the key
+			keypickS.play(); 
+			bg.others.key2.visible = false; // hide the key from view
+			key2Collected = true; // set our Boolean to true
+			}
+	}
+	if(door2Open == false){ // if the door hasn't been opened yet
+     	if(key2Collected == true){ // and if the player has already collected the key
+          	if(player.hitTestObject(bg.others.door2)){ // check if the door and the player are touching
+               // if all of these conditions are met...
+               bg.others.door2.gotoAndStop(2); // ...switch the door's image to its 2nd frame
+               door2Open = true; // ...set the variable to true
+          	}
+    	 }
+	}
+	if (platformList.length > 0){  //enemies left in the enemyList?
+   		 for (var b:int = 0; b < platformList.length; b++){ // for each enemy in the enemyList
+        		if (bumperList.length > 0){
+            		for (var c:int = 0; c < bumperList.length; c++){ // for each bumper in the List
+               			 if ( platformList[b].hitTestObject(bumperList[c]) ){
+                   		 // trace("hit bumper");
+                    	platformList[b].changeDirection();
+               			 }
+			
+            		}
+       			 }
+    		}
+	}
+
+	if (HplatformList.length > 0){  //enemies left in the enemyList?
+    	for (var bye:int = 0; bye < HplatformList.length; bye++){ // for each enemy in the enemyList
+       		 if (bumperList.length > 0){
+            	for (var cye:int = 0; cye < bumperList.length; cye++){ // for each bumper in the List
+               		 if ( HplatformList[bye].hitTestObject(bumperList[cye]) ){
+                    // trace("hit bumper");
+                    HplatformList[bye].changeDirection();
+               		 }
+			
+           		 }
+       		 }
+   		 }
+	}
+	
+	if (enemyList.length > 0){ //enemies left in the enemyList?
+   		 for (var k:int = 0; k < enemyList.length; k++){ // for each enemy in the enemyList
+        	if (bumperList.length > 0){
+            	for (var h:int = 0; h < bumperList.length; h++){ // for each bumper in the List
+                	if ( enemyList[k].hitTestObject(bumperList[h]) ){
+                     //trace("hit bumper");
+                    enemyList[k].changeDirection();
+                	}
+           		 }
+       		 }
+  		  }
+	}
+	if (enemyList.length > 0) // if there are any enemies left in the enemyList
+	{
+    	for (var i:int = 0; i < enemyList.length; i++) // for each enemy in the enemyList
+    		{
+        		if (bulletList.length > 0) // if there are any bullets alive
+       				 {
+            		for (var j:int = 0; j < bulletList.length; j++) // for each bullet in the bulletList
+            			{
+               			 if ( enemyList[i].hitpoint.hitTestObject(bulletList[j]) )
+               				 {   hitS.play();
+                    			trace("Bullet and Enemy are colliding");
+                   				 enemyList[i].removeSelf();
+                   				 bulletList[j].removeSelf();
+									score+=1000;
+               				 }
+            			}
+        			}
+   			 }
+	}
+	
+	if (enemyList.length > 0){ //enemies left?
+   		 for (var mr:int = 0; mr < enemyList.length; mr++){ // for each enemy in the enemyList
+       		 if ( enemyList[mr].hitpoint.hitTestObject(player) ){
+            	trace("player collided with enemy");
+				if (((enemyList[mr].flip)%2) == 1){
+				xSpeed+=25;
+				}
+				if (((enemyList[mr].flip)%2) == 0) {
+					xSpeed-=25;
+				}
+				
+			    health(50); 
+        		}
+   		 }
+	}
+	
+	if (grantEnemyList.length > 0){ //enemies left?
+    	for (var vr:int = 0; vr < grantEnemyList.length; vr++){// for each enemy in the enemyList
+        	if ( grantEnemyList[vr].hitTestObject(player) ){
+            	trace("player collided with enemy");
+				health(100);
+       		 }
+    	}
+	}
+	
+	if (grantEnemyList.length > 0){
+   		 for (var fr:int = 0; fr < grantEnemyList.length; fr++){ // for each enemy in the enemyList
+       		 if (bumperList.length > 0){
+				// trace(bumperList);
+            		for (var tr:int = 0; tr < bumperList.length; tr++){ // for each bumper in the List
+                		if ( grantEnemyList[fr].hitTestObject(bumperList[tr]) ){
+                     trace("hit bumper");
+                   			 grantEnemyList[fr].changeDirection();
+                			}
+			
+           			 }
+      		  }
+   		 }
+	}
+	
+
+	
+
+//grant enemy
+
+	if (grantEnemyList.length > 0)
+		{
+		if (enemybulletList.length > 0)
+			{
+	
+  			for (var ii:int =0; ii <enemybulletList.length; ii++)
+ 			 {
+	 			 if (player.hitTestObject(enemybulletList[ii]))
+	  			{
+		  			health(25);
+		  			enemybulletList[ii].removeSelf();
+	  			}
+  			}
+		}
+	}
+
+	if (grantEnemyList.length > 0) // if there are any enemies left in the enemyList
+		{
+   		 for (var xz:int = 0; xz < grantEnemyList.length; xz++) // for each enemy in the enemyList
+   		 {
+        	if (bulletList.length > 0) // if there are any bullets alive
+        	{
+            	for (var xc:int = 0; xc < bulletList.length; xc++) // for each bullet in the bulletList
+            	{
+               		 if ( grantEnemyList[xz].hitTestObject(bulletList[xc]) )
+                	{   hitcount++; 
+				   		 hitS.play();
+                   		 trace("Bullet and Grant Enemy are colliding");
+						  trace ("hitcount:", hitcount);
+                   		 bulletList[xc].removeSelf();
+               		 }
+          	    } 
+					if (hitcount==10)
+					{ grantEnemyList[xz].removeSelf();
+					  score+=1000;
+					  hitcount=0;
+			        }
+            }
+        }
+      }
+
+score_txt.text="Score=" + score; //write a score to the screen
+beginTime = new Date().getTime(); // timer start//
+timer.start();
+
+}
+}
+
