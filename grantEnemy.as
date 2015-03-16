@@ -11,7 +11,7 @@
             // constructor code
             x = xLocation;
             y = yLocation;
-			//this.granthitpoint.visible=false;
+			this.hitbox.visible=false;
  			//this.mouth.stop();
             addEventListener(Event.ENTER_FRAME, loop);
         }

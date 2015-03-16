@@ -13,7 +13,7 @@ import flash.media.SoundChannel;
 			// constructor code
 		}
 		function update(event:Event):void {
-			player= MovieClip(root).player;
+			player= MovieClip(root).player.pl.hitbox;
 			if (this.hitTestObject(player)) {
 				MainTimeLine.health(100);
 			}

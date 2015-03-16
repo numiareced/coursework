@@ -1,13 +1,13 @@
 //imports//
-
+stage.focus=stage;
 import flash.utils.Timer;
 import flash.events.TimerEvent;
 import flash.events.MouseEvent;
 import flash.net.SharedObject;
 import flash.events.KeyboardEvent;
 import flash.media.Sound;
-import flash.media.SoundChannel;
-
+import flash.media.SoundMixer;
+import flash.media.SoundTransform;
 //timer//
 var beginTime:uint;
 var timer:Timer = new Timer(2500);
@@ -23,7 +23,7 @@ var healed:Boolean=false;
 var checkpoint:Boolean=false;
 
 var hitcount:int;
-
+var deathcount:int;
 //controlls&physics//
 var leftPressed:Boolean = false;
 var rightPressed:Boolean = false;
@@ -89,6 +89,7 @@ var gamecondition:String;
 
 
 // sound definitions//
+SoundMixer.soundTransform = new SoundTransform(0.5);
 var gameoverS:Sound = new gameover();
 var BGSound:Sound = new bgmusic();
 var chanel:SoundChannel;
@@ -112,6 +113,30 @@ if (so.data.scorear != null) //This check if the user has already played the gam
 		
 }
 
+function isgameover():void{
+	//CleanLvl();
+	if (checkpoint==true) {
+			if (deathcount<3){
+		gotoAndStop("continue");
+			}
+	}
+	if (checkpoint==false) {
+		gameOver();
+	}
+	if ((checkpoint==true) && (deathcount>=3)) {
+		gameOver();
+		}
+}
+function contingame(e:MouseEvent):void {
+	chanel.stop();
+	CleanLvl();
+	gotoAndPlay(1);
+	checkpoint=true;
+	deathcount+=1;
+	scrollX=0;
+	scrollY=-300;
+	gamecondition="play";
+}
 
 function newGame(e:MouseEvent):void
 {   //menuchanel.stop();
@@ -126,9 +151,11 @@ function SoundOff (e:MouseEvent):void {
 	btnclickcount++;
 	if (btnclickcount %2 == 1) {
 		chanel.stop();
+		SoundMixer.soundTransform = new SoundTransform(0);
 	}
 	if (btnclickcount%2 == 0) {
 	chanel = BGSound.play(0, 1000, sndTransform);
+	SoundMixer.soundTransform = new SoundTransform(0.5);
 	}
 }
 function nextLevel():void{
@@ -143,6 +170,10 @@ enemyList[i].removeSelf(); // remove from current level
 }
 function CleanLvl():void {
 	timer.removeEventListener(TimerEvent.TIMER, enemyfireBullet);
+	stage.removeEventListener(KeyboardEvent.KEY_DOWN, keyDownHandler);
+	 stage.removeEventListener(KeyboardEvent.KEY_UP, keyUpHandler);
+	 removeEventListener(Event.ENTER_FRAME, Update); 
+	 stage.removeEventListener(Event.ENTER_FRAME, loop);
 		 for (var i:int = 0; i < enemyList.length; i++) { // for each enemy
 enemyList[i].removeSelf(); // remove from current level
 	}
@@ -218,7 +249,7 @@ function health(hpcount:int):void
      {
           currentHP = 0; //set his HP to zero, (just in case)
           trace("You died! :P");
-		 gameOver();//add any extra death-code here
+		 isgameover();//add any extra death-code here
      }
      updateHealthBar(); //update the healthBar
 }
@@ -259,7 +290,7 @@ function addEnemiesToLevel1():void
 	addEnemy(244, 1012);
    addEnemy(344, 336);
 	addEnemy(1160, 340);
-	addEnemy(1985, 340);
+	addEnemy(2200, 340);
 	
 	addgrantEnemy(3185, 896);
 }
@@ -442,15 +473,30 @@ function enemybulletRemoved(e:Event):void {
 }
 //going lvl 2//
 function gotoLevel2():void{
-CleanLvl();
+	//CleanLvl();
      bg.others.gotoAndStop(2); //updates door and key
      bg.visuals.gotoAndStop(2); //updates the visuals
      bg.collisions.gotoAndStop(2); 
-	 sky.gotoAndStop(2);//updates the collisions
+	 
+	 sky.gotoAndStop(2);
+	 for (var i:int = 0; i < enemyList.length; i++) { // for each enemy
+enemyList[i].removeSelf(); // remove from current level
+	}
+	 for (var j:int = 0; j < grantEnemyList.length; j++) { // for each enemy
+grantEnemyList[j].removeSelf(); // remove from current level
+	}
+	for (var k:int = 0; k < platformList.length; k++) { // for each enemy
+platformList[k].removeSelf(); // remove from current level
+	}
+	for (var l:int = 0; l < HplatformList.length; l++) { // for each enemy
+HplatformList[l].removeSelf(); // remove from current level
+	}
      scrollX = 0; //resets the player's x position in the new level
      scrollY = 500; //resets the player's y position in the new level
      keyCollected = false; //resets the keyCollected variable
-     bg.others.key.visible = true; //makes the key visible again
+     bg.others.key.visible = true; 
+	 checkpoint=false;
+	 deathcount=0;//makes the key visible again
      doorOpen = false; //resets the doorOpen variable
      bg.others.door.gotoAndStop(1); //makes the door return to its locked image
 }
@@ -481,7 +527,6 @@ if (gamecondition=="play")
 addEnemiesToLevel1();
 addBumpersToLevel1();
 addPlatformsToLevel1();
-
 chanel = BGSound.play(0, 1000, sndTransform);
 addEventListener(Event.ENTER_FRAME, Update); 
 gotoAndStop(1);
@@ -505,15 +550,16 @@ jumpSound.play();
  
 } else if(e.keyCode == Keyboard.DOWN){
 downPressed = true;
-if(doorOpen && player.hitTestObject(bg.others.door)){
+if(doorOpen && player.pl.hitbox.hitTestObject(bg.others.door)){
           //proceed to somewhere if the player is touching an open door
           //nextLevel();
 		   scrollX=0;
 		  scrollY=-300;
 		  checkpoint=true;
+		  
      }
 	 
- if(door2Open && player.hitTestObject(bg.others.door2)){
+ if(door2Open && player.pl.hitbox.hitTestObject(bg.others.door2)){
           //proceed to somewhere if the player is touching an open door
           nextLevel();
 
@@ -750,7 +796,7 @@ function loop(e:Event):void{
     sky.y = scrollY * 0.2;
 	
 if(keyCollected == false){ // if we still haven't collected the key
-		if(player.hitTestObject(bg.others.key)){
+		if(player.pl.hitbox.hitTestObject(bg.others.key)){
 			keypickS.play(); // and if the player collides with the key
 			bg.others.key.visible = false; // hide the key from view
 			keyCollected = true; // set our Boolean to true
@@ -758,7 +804,7 @@ if(keyCollected == false){ // if we still haven't collected the key
 	}
 	if(doorOpen == false){ // if the door hasn't been opened yet
     	 if(keyCollected == true){ // and if the player has already collected the key
-          	if(player.hitTestObject(bg.others.door)){ // check if the door and the player are touching
+          	if(player.pl.hitbox.hitTestObject(bg.others.door)){ // check if the door and the player are touching
                // if all of these conditions are met...
                bg.others.door.gotoAndStop(2); // ...switch the door's image to its 2nd frame
                doorOpen = true; // ...set the variable to true
@@ -766,7 +812,7 @@ if(keyCollected == false){ // if we still haven't collected the key
          }
 	}
 	if(key2Collected == false){ // if we still haven't collected the key
-		if(player.hitTestObject(bg.others.key2)){
+		if(player.pl.hitbox.hitTestObject(bg.others.key2)){
 			// and if the player collides with the key
 			keypickS.play(); 
 			bg.others.key2.visible = false; // hide the key from view
@@ -775,7 +821,7 @@ if(keyCollected == false){ // if we still haven't collected the key
 	}
 	if(door2Open == false){ // if the door hasn't been opened yet
      	if(key2Collected == true){ // and if the player has already collected the key
-          	if(player.hitTestObject(bg.others.door2)){ // check if the door and the player are touching
+          	if(player.pl.hitbox.hitTestObject(bg.others.door2)){ // check if the door and the player are touching
                // if all of these conditions are met...
                bg.others.door2.gotoAndStop(2); // ...switch the door's image to its 2nd frame
                door2Open = true; // ...set the variable to true
@@ -844,23 +890,29 @@ if(keyCollected == false){ // if we still haven't collected the key
 	
 	if (enemyList.length > 0){ //enemies left?
    		 for (var mr:int = 0; mr < enemyList.length; mr++){ // for each enemy in the enemyList
-       		 if ( enemyList[mr].hitpoint.hitTestObject(player) ){
-            	trace("player collided with enemy");
-				if (((enemyList[mr].flip)%2) == 1){
-				xSpeed+=25;
-				}
-				if (((enemyList[mr].flip)%2) == 0) {
-					xSpeed-=25;
-				}
-				
-			    health(50); 
-        		}
-   		 }
-	}
+       			 if (enemyList[mr].hitpoint.front.hitTestObject(player.pl.hitbox)) {
+					 health(50);
+					if ((enemyList[mr].flip)%2==1) {
+						xSpeed+=25;
+						}
+					if ((enemyList[mr].flip)%2==0) {
+			    		xSpeed-=25;
+						}
+				  }
+					if (enemyList[mr].hitpoint.back.hitTestObject(player.pl.hitbox)) {
+						health(50);
+						if ((enemyList[mr].flip)%2==1) {
+							xSpeed-=25;
+							}
+						if ((enemyList[mr].flip)%2==0) {
+			  			  xSpeed+=25;
+						}
+					}
+	} }
 	
 	if (grantEnemyList.length > 0){ //enemies left?
     	for (var vr:int = 0; vr < grantEnemyList.length; vr++){// for each enemy in the enemyList
-        	if ( grantEnemyList[vr].hitTestObject(player) ){
+        	if ( grantEnemyList[vr].hitbox.hitTestObject(player.pl.hitbox) ){
             	trace("player collided with enemy");
 				health(100);
        		 }
@@ -872,7 +924,7 @@ if(keyCollected == false){ // if we still haven't collected the key
        		 if (bumperList.length > 0){
 				// trace(bumperList);
             		for (var tr:int = 0; tr < bumperList.length; tr++){ // for each bumper in the List
-                		if ( grantEnemyList[fr].hitTestObject(bumperList[tr]) ){
+                		if ( grantEnemyList[fr].hitbox.hitTestObject(bumperList[tr]) ){
                      trace("hit bumper");
                    			 grantEnemyList[fr].changeDirection();
                 			}
@@ -894,7 +946,7 @@ if(keyCollected == false){ // if we still haven't collected the key
 	
   			for (var ii:int =0; ii <enemybulletList.length; ii++)
  			 {
-	 			 if (player.hitTestObject(enemybulletList[ii]))
+	 			 if (player.pl.hitbox.hitTestObject(enemybulletList[ii]))
 	  			{
 		  			health(25);
 		  			enemybulletList[ii].removeSelf();
@@ -911,7 +963,7 @@ if(keyCollected == false){ // if we still haven't collected the key
         	{
             	for (var xc:int = 0; xc < bulletList.length; xc++) // for each bullet in the bulletList
             	{
-               		 if ( grantEnemyList[xz].hitTestObject(bulletList[xc]) )
+               		 if ( grantEnemyList[xz].hitbox.hitTestObject(bulletList[xc]) )
                 	{   hitcount++; 
 				   		 hitS.play();
                    		 trace("Bullet and Grant Enemy are colliding");
